@@ -1,0 +1,39 @@
+#written by
+#Riccardo (Jack) Lucchetti
+#Dipartimento di Economia
+#Università Politecnica delle Marche
+#r.lucchetti@univpm.it
+#http://www.econ.univpm.it/lucchetti
+
+function series gengarch(series e, matrix par, scalar p, scalar q)
+    scalar maxpq = (p>q) ? p : q
+    a = zeros(1,maxpq)
+    b = zeros(1,maxpq)
+
+    scalar omega = par[1]
+    matrix a[1:p] = par[2:p+1]
+    if (q>0)
+        matrix b[1:q] = par[p+2:]
+    endif
+
+    series e2 = e^2
+    series h = omega / (1 - sumr(a) - sumr(b))
+
+    string cmd = "omega"
+    loop for i=1..maxpq --quiet
+        series tmp$i = a[i] * e2(-i) + b[i]
+        sprintf tmp " + tmp%d * h(-%d)", i, i
+        cmd += tmp
+    end loop
+
+    #   printf "genr string = %s", cmd
+
+    series h = @cmd
+    return e * sqrt(h)
+end function
+
+nulldata 16384
+set seed 1234
+setobs 1 1 --special-time-series
+y = 1.5 + gengarch(normal(), {0.1, 0.04, 0.05, 0.9}, 2, 1)
+garch 1 2 ; y

@@ -1,0 +1,191 @@
+/*
+   Instead of using critical values provided by Pesaran et al for the case of weakly exogenous I(1)
+   variables, take the newly implemented critical values based on work by Johansen et al. See the
+   discussion in the gretl user list.
+*/
+
+function matrix joh_coint (list Y "List of endogenous", list X[null] "X List of unrestricted exogenous (optional)", \
+      list R[null] "R List of weakly exogenous (optional)", int model[1:4:1:] "1=no exogenous variables, \
+      2=only unrestricted exogenous, 3=only restricted exogenous,   4=unrestricted and restricted exogenous", \
+      int p[1:12::] "lag length", int case[1:5:3:] "1=nc, 2=rc, 3=default, 4=crt, 5=ct", \
+      int max0 "initial end-point of the base sample, obsnum(date)", int incr[1::1:] "number of obs to add at each step")
+
+    set messages on # see what's going on more fully
+    matrix test_trace = {} #Generate an empty matrix for the Trace statistics
+    matrix pval_trace = {}
+    nY = nelem(Y)
+    if model = 2
+        nX = nelem(X)
+    elif model = 4
+        nX = nelem(X)
+    else
+    endif
+    if model = 3
+        nR = nelem(R)
+    elif model = 4
+        nR = nelem(R)
+    else
+    endif
+    #Calculate the possible number of steps "n"
+    smpl full 				#Make sure that no missing data exist!
+    scalar m = $nobs
+    smpl ; max0
+    scalar n = $nobs
+    scalar n = m - n
+    #Base sample
+    smpl ; max0
+    set halt_on_error off 	#problems with the last observation instead!!
+    loop n+1 				#estimate also the last obs. (+1)
+        if model=1
+            if case = 1
+                coint2 p Y --nc
+                test = $test
+                pval = $pvalue
+            elif case = 2
+                coint2 p Y --rc
+                test = $test
+                pval = $pvalue
+            elif case = 3
+                coint2 p Y
+                test = $test
+                pval = $pvalue
+            elif case = 4
+                coint2 p Y --crt
+                test = $test
+                pval = $pvalue
+            else
+                coint2 p Y --ct
+                test = $test
+                pval = $pvalue
+            endif
+        elif model = 2
+            if case = 1
+                coint2 p Y ; X ; --nc
+                test = $test
+                pval = $pvalue
+            elif case = 2
+                coint2 p Y ; X ; --rc
+                test = $test
+                pval = $pvalue
+            elif case = 3
+                coint2 p Y ; X ;
+                test = $test
+                pval = $pvalue
+            elif case = 4
+                coint2 p Y  ; X ; --crt
+                test = $test
+                pval = $pvalue
+            else
+                coint2 p Y ; X ; --ct
+                test = $test
+                pval = $pvalue
+            endif
+        elif model=3
+            if case = 1
+                coint2 p Y ; ; R --nc
+                test = $test
+                pval = $pvalue
+            elif case = 2
+                coint2 p Y ; ; R --rc
+                test = $test
+                pval = $pvalue
+            elif case = 3
+                coint2 p Y ; ; R
+                test = $test
+                pval = $pvalue
+            elif case = 4
+                coint2 p Y ; ; R --crt
+                test = $test
+                pval = $pvalue
+            else
+                coint2 p Y ; ; R --ct
+                test = $test
+                pval = $pvalue
+            endif
+        else
+            if case = 1
+                coint2 p Y ; X ; R --nc
+                test = $test
+                pval = $pvalue
+            elif case = 2
+                coint2 p Y ; X ; R--rc
+                test = $test
+                pval = $pvalue
+            elif case = 3
+                coint2 p Y ; X ; R
+                test = $test
+                pval = $pvalue
+            elif case = 4
+                coint2 p Y ; X ; R --crt
+                test = $test
+                pval = $pvalue
+            else
+                coint2 p Y ; X ; R --ct
+                test = $test
+                pval = $pvalue
+            endif
+        endif
+        #Obtain the Trace test statistics
+        t = test[,1]' #Trace test statistics in the 1st column
+        test_trace = test_trace | t
+        #Obtain the corresponding p-value Corrected for sample size
+        p = pval[,1]' #p-value of Trace test in the 1st column
+        pval_trace = pval_trace | p
+        smpl ; +incr
+    endloop
+    set halt_on_error on
+
+    genr five = 0.05
+    genr ten = 0.10
+    matrix test_trace = test_trace
+    matrix pval_trace = pval_trace ~ five ~ ten
+    if nY = 2
+        gnuplot 1 2 3 --with-lines --time-series --matrix=test_trace --output=display
+    elif nY = 3
+        gnuplot 1 2 3 4 --with-lines --time-series --matrix=test_trace --output=display
+    elif nY = 4
+        gnuplot 1 2 3 4 5 --with-lines --time-series --matrix=test_trace --output=display
+    elif nY = 5
+        gnuplot 1 2 3 4 5 6 --with-lines --time-series --matrix=test_trace --output=display
+    elif nY = 6
+        gnuplot 1 2 3 4 5 6 7 --with-lines --time-series --matrix=test_trace --output=display
+    elif nY = 7
+        gnuplot 1 2 3 4 5 6 7 8 --with-lines --time-series --matrix=test_trace --output=display
+    elif nY = 8
+        gnuplot 1 2 3 4 5 6 7 8 9 --with-lines --time-series --matrix=test_trace --output=display
+    elif nY = 9
+        gnuplot 1 2 3 4 5 6 7 8 9 10 --with-lines --time-series --matrix=test_trace --output=display
+    elif nY = 10
+        gnuplot 1 2 3 4 5 6 7 8 9 10 11 --with-lines --time-series --matrix=test_trace --output=display
+    elif nY = 11
+        gnuplot 1 2 3 4 5 6 7 8 9 10 11 12 --with-lines --time-series --matrix=test_trace --output=display
+    else
+        gnuplot 1 2 3 4 5 6 7 8 9 10 11 12 13 --with-lines --time-series --matrix=test_trace --output=display
+    endif
+
+    if nY = 2
+        gnuplot 1 2 3 --with-lines --time-series --matrix=pval_trace --output=display
+    elif nY = 3
+        gnuplot 1 2 3 4 --with-lines --time-series --matrix=pval_trace --output=display
+    elif nY = 4
+        gnuplot 1 2 3 4 5 --with-lines --time-series --matrix=pval_trace --output=display
+    elif nY = 5
+        gnuplot 1 2 3 4 5 6 --with-lines --time-series --matrix=pval_trace --output=display
+    elif nY = 6
+        gnuplot 1 2 3 4 5 6 7 --with-lines --time-series --matrix=pval_trace --output=display
+    elif nY = 7
+        gnuplot 1 2 3 4 5 6 7 8 --with-lines --time-series --matrix=pval_trace --output=display
+    elif nY = 8
+        gnuplot 1 2 3 4 5 6 7 8 9 --with-lines --time-series --matrix=pval_trace --output=display
+    elif nY = 9
+        gnuplot 1 2 3 4 5 6 7 8 9 10 --with-lines --time-series --matrix=pval_trace --output=display
+    elif nY = 10
+        gnuplot 1 2 3 4 5 6 7 8 9 10 11 --with-lines --time-series --matrix=pval_trace --output=display
+    elif nY = 11
+        gnuplot 1 2 3 4 5 6 7 8 9 10 11 12 --with-lines --time-series --matrix=pval_trace --output=display
+    else
+        gnuplot 1 2 3 4 5 6 7 8 9 10 11 12 13 --with-lines --time-series --matrix=pval_trace --output=display
+    endif
+
+    return test_trace
+end function

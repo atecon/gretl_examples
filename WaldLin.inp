@@ -1,0 +1,71 @@
+set echo off
+set messages off
+
+/****************************************************
+   * WALD STATISTIC                                    *
+   * Original code by Doug Hodgson & Keith Vorkink at  *
+   * U. Rochester. Original available at:              *
+   * http://marriottschool.byu.edu/emp/tsp/wald/wald.g *
+****************************************************/
+function matrix wald (matrix rcap "set of q linear restrictions on m-vector of params",
+      matrix rsml "q by 1 vector of restricted values",
+      matrix ivesm "m by m parameter covariance matrix",
+      matrix bhat "vector or parameter values")
+        
+    set warnings off
+
+    matrix A = (rcap*bhat-rsml)'
+    scalar err = 0
+    try_qform(rcap,ivesm, &err)
+    if !err
+        matrix q = qform(rcap,ivesm)
+        scalar err = 0
+        try_invert(q, &err)
+        if !err
+            matrix B = inv(q)
+            err = 0
+            try_qform(A,B,&err)
+            if !err                
+                wld = qform(A,B)
+                pval = 1 - cdf(X,rows(rcap)',wld)    
+                return wld ~ pval
+            endif    
+        endif
+    endif  
+    matrix mout = zeros(1,2)
+    mout = (mout ? mout : NA)
+    return mout    
+end function
+
+function void try_qform (matrix A, matrix B, scalar *err)
+    catch matrix ret = qform(A,B)
+    err = $error
+end function
+
+function void try_invert (matrix m, scalar *err)
+    catch matrix ret = inv(m)
+    err = $error
+end function
+
+/*
+# Example
+open denmark.gdt -q
+list L1 = LRY IBO
+matrix rcap = zeros(1+nelem(L1),1)'
+# Test b1-b2 = 0
+rcap[2] = 1
+rcap[3] = -1
+matrix rsml = 0
+
+ols LRM 0 L1 -q
+W = wald(rcap, rsml, $vcv, $coeff)
+printf "\n pval = %12.8f\n", W
+
+restrict 		# Use gretl's internal function
+    R = rcap
+    q = rsml
+end restrict
+*/
+    
+
+

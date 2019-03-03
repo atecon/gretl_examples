@@ -1,0 +1,34 @@
+function void at_each_step(bundle *b)
+       b.obsymat = b.mX[b.t,]'
+end function
+
+open AWM.gdt --quiet
+smpl 1974:1 1994:1
+
+/* parameter initialization */
+scalar b0 = mean(INFQ)
+scalar s_obs = 0.1
+scalar s_state = 0.1
+
+/* bundle setup */
+bundle B = ksetup(INFQ, 1, 1, 1)
+matrix B.mX = {URX}
+matrix B.depvar = {INFQ}
+B.timevar_call = "at_each_step"
+B.diffuse = 1
+
+/* ML estimation of intercept and the two variances */
+mle LL = err ? NA : B.llt
+       B.obsy = B.depvar - b0
+       B.obsvar = s_obs^2
+       B.statevar = s_state^2
+       err = kfilter(&B)
+       params b0 s_obs s_state
+end mle
+
+/* display the smoothed time-varying slope */
+ksmooth(&B)
+series tvar_b1hat = B.state[,1]
+series tvar_b1se = sqrt(B.stvar[,1])
+gnuplot tvar_b1hat --time-series --with-lines --output=display \
+  --band=tvar_b1hat,tvar_b1se,1.96 --band-style=fill

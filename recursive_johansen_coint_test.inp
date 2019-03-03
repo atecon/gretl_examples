@@ -1,0 +1,356 @@
+/*
+   The function estimates the Johansen cointegration Trace statistics
+   (forward) recursively for a chosen sample period.
+   All critical values are taken from Pesaran et al "Structural analysis
+   of vector error correction models with exogenous I(1) variables".
+
+   /*#################################################################
+   "model"		1=no exogenous variables
+   2=only unrestricted exogenous
+   3=only restricted exogenous
+   4=unrestricted and restricted exogenous
+
+   "p"			Lag length of the VAR
+   "Y"			List of endogenous variables
+   "X"			List of unrestricted exogenous variables
+   "R"			List of restricted (weakly) exogenopus variables
+
+   "case"		1=no intercept and no trends; --nc
+   2=restricted intercept and not trends; --rc
+   3=unrestricted intercepts and no trends; default
+   4=unrestricted intercepts and restricted trends; --crt
+   5=unrestricted intercepts and unrestricted trends; --ct
+
+   "nY"		Number of elements in list Y
+   "nX"		Number of elements in list X
+   "nR"		Number of elements in list R
+
+   "test"		Matrix which contains the Trace and LMax test statistics
+
+
+   The output is matrix called "test_trace" which contains in its rows
+   the Trace statistics for each round (recursive sample) and in its
+   columns the Trace test statistics for the each rank test (e.g.
+   col 1 = rk=0, col = rk=1...). The last column is a constant (1)
+   which just refers to the normalized 5% significance level.
+###################################################################*/
+
+/*
+   Not yet implemented:
+   1. Sample and benchmark sample
+   2. Forward recursive and backward recursive estimation
+   3. Automatic model selection without manual specifiation (e.g. model=1)
+   4. Generate always empty matrices!
+*/
+
+/*
+   Example:
+   open denmark.gdt
+   list Y = LRM LRY IBO
+   list X = null
+   list R = null
+   joh_coint_exog(Y, X, R, 1, 4, 3, obsnum(1982:4), 1)
+*/
+
+function matrix joh_coint_exog (list Y "List of endogenous", \
+                                list X[null] "X List of unrestricted exogenous (optional)", \
+      list R[null] "R List of weakly exogenous (optional)", \
+      int model[1:4:1] "1=no exogenous variables, \
+      2=only unrestricted exogenous, 3=only restricted exogenous,\
+      4=unrestricted and restricted exogenous", \
+      int p[1:12] "lag length", \
+      int case[1:5:3] "1=nc, 2=rc, 3=default, 4=crt, 5=ct", \
+      int max0 "initial end-point of the base sample, obsnum(date)", \
+      int incr[1::1] "number of obs to add at each step")
+
+    set messages on # see what's going on more fully
+
+    matrix test_trace = {} #Generate an empty matrix for the Trace statistics
+
+    nY = nelem(Y)
+
+    if model = 2
+        nX = nelem(X)
+    elif model = 4
+        nX = nelem(X)
+    else
+    endif
+
+    if model = 3
+        nR = nelem(R)
+    elif model = 4
+        nR = nelem(R)
+    else
+    endif
+
+    #Calculate the possible number of steps "n"
+    smpl full 				#Make sure that no missing data exist!
+    scalar m = $nobs
+    smpl ; max0
+    scalar n = $nobs
+    scalar n = m - n
+
+    #Base sample
+    smpl ; max0
+
+    set halt_on_error off 	#problems with the last observation instead!!
+    loop n+1 				#add also the last observation (+1)
+        if model=1
+            if case = 1
+                coint2 p Y --nc
+                test = $test
+            elif case = 2
+                coint2 p Y --rc
+                test = $test
+            elif case = 3
+                coint2 p Y
+                test = $test
+            elif case = 4
+                coint2 p Y --crt
+                test = $test
+            else
+                coint2 p Y --ct
+                test = $test
+            endif
+        elif model = 2
+            if case = 1
+                coint2 p Y ; X ; --nc
+                test = $test
+            elif case = 2
+                coint2 p Y ; X ; --rc
+                test = $test
+            elif case = 3
+                coint2 p Y ; X ;
+                test = $test
+            elif case = 4
+                coint2 p Y  ; X ; --crt
+                test = $test
+            else
+                coint2 p Y ; X ; --ct
+                test = $test
+            endif
+        elif model=3
+            if case = 1
+                coint2 p Y ; ; R --nc
+                test = $test
+            elif case = 2
+                coint2 p Y ; ; R --rc
+                test = $test
+            elif case = 3
+                coint2 p Y ; ; R
+                test = $test
+            elif case = 4
+                coint2 p Y ; ; R --crt
+                test = $test
+            else
+                coint2 p Y ; ; R --ct
+                test = $test
+            endif
+        else
+            if case = 1
+                coint2 p Y ; X ; R --nc
+                test = $test
+            elif case = 2
+                coint2 p Y ; X ; R--rc
+                test = $test
+            elif case = 3
+                coint2 p Y ; X ; R
+                test = $test
+            elif case = 4
+                coint2 p Y ; X ; R --crt
+                test = $test
+            else
+                coint2 p Y ; X ; R --ct
+                test = $test
+            endif
+        endif
+
+        #Obtain the Trace test statistics
+        t = test[,1]' #Trace test statistics in the the 1st column
+        test_trace = test_trace | t
+        smpl ; +incr
+    endloop
+    set halt_on_error on
+
+    /*
+       5% critical values taken from Pesaran et al "Structural analysis of
+       vector error correction models with exogenous I(1) variables"
+
+       In the following we build the matrix with the critical values up to
+       12 endogenous variables (#of rows) and from zero to 3 weakly
+       exogenous variables (#4columns) for the 5 cases.
+    */
+    if case=1
+        #Case I: no intercept and no trends; --nc
+        matrix cv_caseI = \
+          { 304.4, 329.4, 353.5, 378.0; \
+          258.7, 280.5, 303.1, 326.0; \
+          215.4, 235.8, 256.7, 277.4; \
+          175.9, 195.9, 214.9, 233.5; \
+          141.2, 158.2, 175.3, 192.1; \
+          110.1, 125.9, 141.4, 156.7; \
+          83.18, 9679, 110.2, 123.3; \
+          59.33, 69.87, 81.45, 92.92; \
+          39.81, 49.56, 59.19, 68.70; \
+          24.05, 32.16, 39.40, 46.79; \
+          12.36, 17.79, 23.37, 28.64; \
+          4.16, 8.13, 11.41, 14.19 }
+    elif case=2
+        #Case II: restricted intercept and not trends; --rc
+        matrix cv_caseII = \
+          { 341.2, 365.1, 389.4, 413.6; \
+          291.7, 314.2, 336.4, 358.7; \
+          245.7, 265.9, 287.0, 307.2; \
+          204.0, 223.8, 242.3, 260.8; \
+          166.1, 182.7, 199.7, 216.6; \
+          132.5, 148.0, 163.1, 178.0; \
+          102.6, 116.3, 128.9, 141.7; \
+          75.98, 86.58, 97.57, 108.6; \
+          53.48, 62.75, 72.15, 81.25; \
+          34.87, 42.40, 49.43, 56.28; \
+          20.18, 25.23, 30.46, 35.46; \
+          9.16, 12.45, 15.27, 17.80 }
+    elif case=3
+        #Case III: unrestricted intercepts and no trends; default
+        matrix cv_caseIII = \
+          { 328.5, 352.4, 376.5, 400.8; \
+          279.8, 302.2, 324.4, 347.7; \
+          235.0, 255.5, 276.5, 297.2; \
+          194.4, 214.4, 232.7, 251.6; \
+          157.8, 174.2, 191.6, 208.3; \
+          124.6, 140.5, 155.9, 170.7; \
+          95.87, 109.6, 122.8, 135.4; \
+          70.49, 81.45, 92.42, 103.7; \
+          48.88, 58.63, 68.06, 77.21; \
+          31.54, 38.93, 46.66, 53.41; \
+          17.86, 23.32, 28.42, 33.35; \
+          8.07, 11.47, 14.35, 16.90 }
+    elif case=4
+        #Case IV: unrestricted intercepts and restricted trends; --crt
+        matrix cv_caseIV = \
+          { 364.8, 389.2, 413.5, 437.3; \
+          314.1, 335.5, 358.0, 380.5; \
+          265.8, 286.8, 307.0, 327.7; \
+          222.6, 242.4, 260.4, 279.3; \
+          183.0, 199.1, 215.8, 232.9; \
+          147.3, 163.0, 177.8, 192.8; \
+          115.9, 128.8, 141.7, 154.3; \
+          87.17, 97.83, 108.9, 120.0; \
+          63.00, 72.10, 81.20, 90.02; \
+          42.34, 49.36, 56.43, 63.54; \
+          25.77, 30.77, 35.37, 40.37; \
+          12.39, 15.44, 18.08, 20.47 }
+    else
+        #Case V: unrestricted intercepts and unrestricted trends; --ct
+        matrix cv_caseV = \
+          { 352.1, 376.8, 401.2, 425.3; \
+          302.4, 323.9, 346.6, 368.8; \
+          255.1, 276.4, 296.3, 317.5; \
+          213.4, 233.3, 251.2, 270.1; \
+          174.9, 190.9, 207.9, 224.8; \
+          140.2, 156.0, 170.6, 185.3; \
+          109.2, 122.3, 135.5, 148.3; \
+          82.23, 92.96, 104.0, 115.1; \
+          58.93, 68.10, 77.14, 86.30; \
+          39.33, 46.58, 53.48, 60.54; \
+          23.83, 28.76, 33.39, 38.50; \
+          11.54, 14.53, 17.14, 19.62 }
+    endif
+    ###############################################################
+
+    #restrict the respective cv-matrix according to its no. of
+    #endogenous variables (rows) and weakly exogenous (col)
+    #normalize trace statistics by the 95% quantile
+    if model = 1
+        if case = 1
+            test_trace = test_trace./cv_caseI[12-nY+1:12,1:1]'
+        elif case = 2
+            test_trace = test_trace./cv_caseII[12-nY+1:12,1:1]'
+        elif case = 3
+            test_trace = test_trace./cv_caseIII[12-nY+1:12,1:1]'
+        elif case = 4
+            test_trace = test_trace./cv_caseIV[12-nY+1:12,1:1]'
+        else
+            test_trace = test_trace./cv_caseV[12-nY+1:12,1:1]'
+        endif
+    elif model = 2
+        if case = 1
+            test_trace = test_trace./cv_caseI[12-nY+1:12,1:1]'
+        elif case = 2
+            test_trace = test_trace./cv_caseII[12-nY+1:12,1:1]'
+        elif case = 3
+            test_trace = test_trace./cv_caseIII[12-nY+1:12,1:1]'
+        elif case = 4
+            test_trace = test_trace./cv_caseIV[12-nY+1:12,1:1]'
+        else
+            test_trace = test_trace./cv_caseV[12-nY+1:12,1:1]'
+        endif
+    elif model = 3
+        if case = 1
+            test_trace = test_trace./cv_caseI[12-nY+1:12,nR+1:nR+1]'
+        elif case = 2
+            test_trace = test_trace./cv_caseII[12-nY+1:12,nR+1:nR+1]'
+        elif case = 3
+            test_trace = test_trace./cv_caseIII[12-nY+1:12,nR+1:nR+1]'
+        elif case = 4
+            test_trace = test_trace./cv_caseIV[12-nY+1:12,nR+1:nR+1]'
+        else
+            test_trace = test_trace./cv_caseV[12-nY+1:12,nR+1:nR+1]'
+        endif
+    else
+        if case = 1
+            test_trace = test_trace./cv_caseI[12-nY+1:12,nR+1:nR+1]'
+        elif case = 2
+            test_trace = test_trace./cv_caseII[12-nY+1:12,nR+1:nR+1]'
+        elif case = 3
+            test_trace = test_trace./cv_caseIII[12-nY+1:12,nR+1:nR+1]'
+        elif case = 4
+            test_trace = test_trace./cv_caseIV[12-nY+1:12,nR+1:nR+1]'
+        else
+            test_trace = test_trace./cv_caseV[12-nY+1:12,nR+1:nR+1]'
+        endif
+    endif
+
+    genr one = 1
+    matrix test_trace = test_trace ~ one
+
+    if nY = 2
+        gnuplot 1 2 3 --with-lines --time-series --matrix=test_trace --output=display
+    elif nY = 3
+        gnuplot 1 2 3 4 --with-lines --time-series --matrix=test_trace --output=display
+    elif nY = 4
+        gnuplot 1 2 3 4 5 --with-lines --time-series --matrix=test_trace --output=display
+    elif nY = 5
+        gnuplot 1 2 3 4 5 6 --with-lines --time-series --matrix=test_trace --output=display
+    elif nY = 6
+        gnuplot 1 2 3 4 5 6 7 --with-lines --time-series --matrix=test_trace --output=display
+    elif nY = 7
+        gnuplot 1 2 3 4 5 6 7 8 --with-lines --time-series --matrix=test_trace --output=display
+    elif nY = 8
+        gnuplot 1 2 3 4 5 6 7 8 9 --with-lines --time-series --matrix=test_trace --output=display
+    elif nY = 9
+        gnuplot 1 2 3 4 5 6 7 8 9 10 --with-lines --time-series --matrix=test_trace --output=display
+    elif nY = 10
+        gnuplot 1 2 3 4 5 6 7 8 9 10 11 --with-lines --time-series --matrix=test_trace --output=display
+    elif nY = 11
+        gnuplot 1 2 3 4 5 6 7 8 9 10 11 12 --with-lines --time-series --matrix=test_trace --output=display
+    else
+        gnuplot 1 2 3 4 5 6 7 8 9 10 11 12 13 --with-lines --time-series --matrix=test_trace --output=display
+    endif
+
+    return test_trace
+
+end function
+
+
+
+
+
+
+
+
+
+
+
+
+

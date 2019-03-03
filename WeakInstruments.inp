@@ -1,0 +1,56 @@
+/*
+   Weak Instrument Diagnostics.
+
+   Moment Selection Criteria (MSC) are a form of Information Criteria that can be used to com-
+   pare different instrument sets. Comparison of the MSC from equations estimated with differ-
+   ent instruments can help determine which instruments perform the best. EViews reports
+   three different MSCs: two proposed by Andrews (1999)—a Schwarz criterion based, and a
+   Hannan-Quinn criterion based, and the third proposed by Hall, Inoue, Jana and Shin
+   (2007)—the Relevant Moment Selection Criterion.
+
+   This function is written by Artur Tarassow.
+
+*/
+
+function matrix WeakInstruments (scalar Jstat "J-statistics", 
+    scalar T "No. of observations",
+    scalar c "No. of instruments",
+    scalar k "No. of regressors",
+    matrix VCV "Estimated VCV",
+    scalar b "Bandwith: =1 for TSLS and White OR equal to the bandwith used in HAC GMM estim." \
+    )
+      
+    #Store results in a vector
+    matrix WeakInstr = zeros(3,1)
+    
+    #SIC-based criteria
+    SIC = Jstat - (c - k) * ln(T)
+    WeakInstr[1,1] = SIC
+    
+    #HQIQ-based criteria
+    HQ = Jstat - 2.01 * (c - k) * ln(ln(T))
+    WeakInstr[2,1] = HQ
+    
+    #Relevant MSC
+    scalar tau = (T/b)^(0.5)
+    MSC = ln(det(T * VCV)) * (1/tau) * (c - k) * ln(tau)
+    WeakInstr[3,1] = MSC
+    
+    rownames(WeakInstr, "SIC HQ MSC")
+    colnames(WeakInstr, "Criteria")
+
+    printf "Weak Instruments Diagnostics\n"
+
+    printf "=======================================================================\n"
+    
+    printf "SIC-based criteria (Andrews 1999) = %.3f \n", SIC
+    
+    printf "HQIQ-based criteria (Andrews 1999) = %.3f\n", HQ
+    
+    printf "MSC (Hall et al 2007) = %.3f \n", MSC
+
+    printf "=======================================================================\n"
+    
+    return WeakInstr
+end function
+

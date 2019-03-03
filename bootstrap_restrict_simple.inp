@@ -1,0 +1,65 @@
+set echo off
+set messages off
+
+#open sw_ch14.gdt -q
+
+scalar n = 1 #no. of equations
+scalar p = 1 #lag-order
+
+smpl --full
+smpl p p#+1
+#save the initial values of the series
+matrix y0 = {LHUR}
+smpl --full
+
+list LY1 = lags(p, LHUR)
+
+test <- ols LHUR 0 LY1
+
+#restriction
+restrict test --full
+    b[2]=1
+end restrict
+
+scalar mco = $coeff[1] # coeff constant
+
+Ftest = $test
+printf "Original test and p-value: %g [%g]\n", Ftest, $pvalue
+
+# organize the coefficients
+matrix B = mshape($coeff, n*p+1, n)
+print B
+# residuals plus constants
+scalar no = $nobs
+smpl p+1 no
+matrix U = $uhat .+ B[1,]
+smpl --full
+# get the system's companion matrix
+#matrix A = $sysA
+matrix A = $coeff[2]
+print A
+
+scalar N = 99999  # number of replications
+scalar pfrac = 0 
+matrix mcboot = zeros(N+1,1)
+
+
+loop i=1..N+1 -q
+  Us = resample(U)
+  matrix S = varsimul(A, Us, y0)
+  series y1 = S[,1]
+  bootsys <- ols y1 0 y1(-1 to -p) -q
+restrict --full
+    b[2]=1
+end restrict --silent
+pfrac += $test >= Ftest
+
+mcboot[i] = $coeff[1]
+
+endloop
+
+
+pfrac /= N
+printf "%d replications: bootstrap p-value = %g\n", N, pfrac
+printf "initial coeff of constant = %.4f, bootstrapped mean = %.4f\n", mco, mean(mcboot)
+printf "95 CI = %.4f to %.4f\n", quantile(mcboot,0.25), quantile(mcboot,0.75)

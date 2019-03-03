@@ -1,0 +1,72 @@
+#Written be Allin Cottrell. Feb 23 2012
+#Bootstrap Granger(non)causality SUR/VAR test
+
+set echo off
+set messages off
+
+open sw_ch14.gdt -q
+series infl = 400 * log(PUNEW/PUNEW(-1))
+diff infl 
+
+scalar n = 2 # number of equations
+scalar p = 3 # lag order
+
+smpl p p+n
+# save the p initial values of the series
+matrix y0 = {d_infl, LHUR}
+smpl --full
+# print y0
+
+list LY1 = lags(p, d_infl)
+list LY2 = lags(p, LHUR)
+
+sys <- system
+  equation d_infl 0 LY1 LY2
+  equation   LHUR 0 LY1 LY2
+end system
+
+# Granger-type restriction
+restrict sys
+  b[2,2] = 0
+  b[2,3] = 0
+  b[2,4] = 0
+end restrict
+
+# estimate the restricted system
+estimate sys method=sur
+Ftest = $test
+printf "Original test and p-value: %g [%g]\n", Ftest, $pvalue
+
+# organize the coefficients
+matrix B = mshape($coeff, n*p+1, n)
+print B
+# residuals plus constants
+matrix U = $uhat .+ B[1,]
+# get the system's companion matrix
+matrix A = $sysA
+print A
+
+scalar N = 10000   # number of replications
+scalar pfrac = 0 
+
+loop N -q
+  Us = resample(U)
+  matrix S = varsimul(A, Us, y0)
+  series y1 = S[,1]
+  series y2 = S[,2]
+  bootsys <- system
+    equation y1 0 y1(-1 to -p) y2(-1 to -p)
+    equation y2 0 y1(-1 to -p) y2(-1 to -p) 
+  end system
+  restrict bootsys
+    b[2,2] = 0
+    b[2,3] = 0
+    b[2,4] = 0
+  end restrict --silent
+  estimate bootsys method=sur --quiet
+  pfrac += $test >= Ftest
+endloop
+
+pfrac /= N
+printf "%d replications: bootstrap p-value = %g\n", N, pfrac
+

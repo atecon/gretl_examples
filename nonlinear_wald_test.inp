@@ -1,0 +1,125 @@
+set verbose off
+
+/****************************************************
+   * WALD STATISTIC                                    *
+   * Original code by Doug Hodgson & Keith Vorkink at  *
+   * U. Rochester. Original available at:              *
+   * http://marriottschool.byu.edu/emp/tsp/wald/wald.g *
+****************************************************/
+function matrix nlwald (matrix vb "Relevant elements of cov matrix",
+    matrix b "Coeffs: y(-1) ~ x(-1)",
+    matrix R "Rb=r",
+    matrix r "Rb=r")
+    /*
+       NOTE: 
+       The order of the k by k matrix vb is:
+       vb = y(-1) ~ x1(-1)
+       where y(-1) is the lagged level of the endogeneous.
+       The beta vector must have the same ordering
+    */
+       
+    scalar k = 1	#rows(vb)-1								# Cols of X, + of regressors apart from y(-1)
+
+    matrix fb1 = zeros(k,1)                                # First derivatives                #
+    #     loop i=1..k -q
+    #         fb1[i,] = b[(i+1)]/(b[1]^2)
+    #     endloop
+    fb1[1] = b[2]/(b[1]^2)    
+
+    matrix fb2 = (-1/b[1])*I(k)
+    fb = fb1~fb2
+
+    matrix lrse = sqrt(fb*vb*fb')                      # Compute SE's of LR coefficients  #
+    lrse = isnan(lrse) ? 0 : lrse
+    print lrse
+    lrse2 = lrse^2
+
+    matrix lrco = zeros(1,k)
+    lrco[1] = -b[2]/b[1]
+
+    matrix wld = (R*lrco'-r)'*invpd(R*lrse2*R')*(R*lrco'-r)
+    matrix pval = 1 - cdf(X,rows(R),wld)
+    
+    RET = wld ~ pval
+    return RET    
+end function
+
+function matrix lrse (matrix b, matrix vcv)
+    
+    # Computes the standard errors of the nonlinear
+    # long-run coefficients using the Delta method
+    # Assuming bn level variables
+    # Order of beta: rho~b1~b2~..~bn
+    # Order of vcv:  rho~b1~b2~..~bn
+    
+    #scalar k = 1	#rows(vb)-1								# Cols of X, + of regressors apart from y(-1)
+    scalar k = rows(b)-1
+
+    matrix fb1 = zeros(k,1)                                # First derivatives                #
+    fb1 = b[2:]./(b[1]^2)
+    
+    matrix fb2 = (-1./b[1]).*I(k)
+    fb = fb1~fb2
+    
+    matrix lrse = sqrt(qform(fb,vcv))                      # Compute SE's of LR coefficients  #
+
+    return diag(lrse)
+end function  
+
+
+# gretl's internal function
+function matrix restr (const matrix b)
+    matrix v = b[5]/b[2]
+    return v
+end function
+
+
+
+
+
+#==============================================================
+
+
+
+
+# APPLICATION
+clear
+open denmark.gdt --quiet
+list y = LRY IBO IDE
+list dy = diff(y)
+ols diff(LRM) 0 LRY(-1) IBO(-1) IDE(-1) dy(-1 to -2)
+matrix beta = $coeff
+matrix vcv = $vcv
+
+# Use gretl internal function
+restrict 
+    rfunc=restr
+end restrict
+
+matrix wald = lrse(beta[2:5], vcv[2:5,2:5])
+wald
+
+# Set up the restrictions
+matrix R = { 1 }	# Test that the LR coeff is zero
+matrix r = { 0 } 	# Test that the LR coeff is zero
+k = 2+nelem(y)-1
+
+# Compute LR-coeff and its stderr
+matrix vb = $vcv[2:k,2:k]			# grab vcv of relevant variables
+matrix wlr = zeros((nelem(y)-1),2)	# store stderr ~ pval
+loop i=1..(rows(vb)) -q
+    vtmp = zeros(2,2)
+    vtmp[1:,1] = vb[1,1] | vb[i+1,1]
+    vtmp[1:,2] = vb[1,i+1] | vb[i+1,i+1]
+    ctmp = $coeff[2] ~ $coeff[(2+i)]
+    wlr[i,] = nlwald(vtmp,ctmp,R,r)
+endloop
+printf "\nLR coefficients, stderr and pval\n"
+printf "----------------------------------\n"
+printf "Coeff	teststat	pval\n"
+printf "----------------------------------\n"
+loop i=1..rows(wlr) -q
+    printf "LR_$i %12.4f %12.3f \n", wlr[i,1], wlr[i,2]
+endloop
+
+

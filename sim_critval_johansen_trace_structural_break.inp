@@ -1,0 +1,139 @@
+# Code to compute asymptotic p-values & critical values for
+# the Johansen et al. (2000) modified Trace tests for cointegration
+# in the presence of structural breaks.
+
+# Written by Jack Lucchetti by adapting R code by
+# Ryan Godwin & David Giles (Dept. of Economics, Univesity of Victoria, Canada)
+#Article: http://ideas.repec.org/p/vic/vicewp/1110.html
+# Last Update: 29 June, 2011
+# User has to assign the following 3 values
+#==========================================
+clear
+set verbose off
+
+scalar q = 3		#number of sub-samples, q-1=numb. of breaks
+scalar V1 = 0.3		#first break-point
+scalar V2 = 0.85	#second break-point
+
+#======================================
+# If user requires p-value for one or both Trace statistics,
+# alter one or both of the next 2 lines
+scalar traceL = 0            # Value of Hl(r) statistic
+scalar traceC = 114.7        # Value of Hc(r) statistic
+#=========================================
+
+pr_max = 10   # Do NOT make (p-r) greater than 10 - see Johansen et al. (2000:230)
+
+# The values of  "a" and "b" depend on the number (q-1) of structural breaks.
+# When q=1, set a=b=0, & this is the case of no structural breaks
+# When q=2, set a=0 &  b = min[ V1 , (1-V1)]
+# When q=3, set a=min[V1, (V2-V1), (1-V2)] & b = min[remaining two V expressions ]
+
+if (q==1)
+    a = 0
+    b = 0
+
+elif (q==2)
+    a = 0
+    b = (V1 > 0.5) ? V1 : 1-V1
+
+elif (q==3)
+
+    tmp = {V1; (V2-V1); (1-V2)}
+    tmp = sort(tmp)
+    scalar a = tmp[1]
+    scalar b = tmp[2]
+endif
+
+# lm denotes the logarithm of the mean of the asymptotic distribution
+# lv denotes the logarithm of the variance of the asymptotic distribution
+# Add L or C to the names to reflect the H(L) test or the H(c) test.
+# See Table 4 of Johansen et al. (2000).
+# First construct critical values for the Hl(r) test; and then for the Hc(r) test
+
+matrix pr = seq(1,pr_max)
+matrix pr2 = pr.^2
+
+matrix lmL = 3.06 + 0.456*pr + 1.47*a + 0.993*b \
+  - 0.0269*pr.^2 - 0.0363*a*pr - 0.0195*b*pr - 4.21*a^2 - 2.35*b^2 + \
+  0.000840*pr.^3 + 6.01*a^3 - 1.33*a^2*b + 2.04*b^3 \
+  - 2.05/pr - 0.304*a/pr + 1.06*b/pr + \
+  9.35*a^2/pr + 3.82*a*b/pr + 2.12*b^2/pr - \
+  22.8*a^3/pr - 7.15*a*b^2/pr - 4.95*b^3/pr + \
+  0.681/pr2 - 0.828*b/pr2 - 5.43*a^2/pr2 + 13.1*a^3/pr2 + 1.5*b^3/pr2
+
+matrix lvL = 3.97 + 0.314*pr + 1.79*a + 0.256*b \
+  -0.00898*pr.^2 - 0.0688*a*pr - 4.08*a^2 + \
+  4.75*a^3 - 0.587*b^3 - \
+  2.47/pr + 1.62*a/pr + 3.13*b/pr - 4.52*a^2/pr - 1.21*a*b/pr - 5.87*b^2/pr + 4.89*b^3/pr\
+  + 0.874/pr2 - 0.865*b/pr2
+
+meanL = exp(lmL) - (3-q)*pr
+varL  = exp(lvL) - 2*(3-q)*pr
+
+# Use the asymptotic mean and variance to obtain the shape and scale parameters
+# of the gamma distribution to be used to approximate the asymptotic distribution
+# of the test statistics, and hence obtain the desired quantiles under the null:
+
+thetaL = varL ./ meanL
+kL = meanL.^2 ./ varL
+
+lmC = 2.80 + 0.501*pr + 1.43*a + 0.399*b \
+  -0.0309*pr2 - 0.0600*a*pr - 5.72*a^2 - 1.12*a*b - 1.70*b^2 + \
+  0.000974*pr.^3 + 0.168*a^2*pr + 6.34*a^3 + 1.89*a*b^2 + 1.85*b^3 - \
+  2.19/pr - 0.438*a/pr + 1.79*b/pr + \
+  6.03*a^2/pr + 3.08*a*b/pr - 1.97*b^2/pr \
+  -8.08*a^3/pr - 5.79*a*b^2/pr + \
+  0.717/pr2 - 1.29*b/pr2 - 1.52*a^2/pr2 + 2.87*b^2/pr2 - 2.03*b^3/pr2
+
+lvC = 3.78 + 0.346*pr + 0.859*a - \
+  0.0106*pr2 - 0.0339*a*pr - 2.35*a^2 + 3.95*a^3 - 0.282*b^3 - \
+  2.73/pr + 0.874*a/pr + 2.36*b/pr - 2.88*a^2/pr - 4.44*b^2/pr + 4.31*b^3/pr + \
+  1.02/pr2 - 0.807*b/pr2
+
+meanC = exp(lmC) - (3-q)*pr
+varC  = exp(lvC) - 2*(3-q)*pr
+
+# Use the asymptotic mean and variance to obtain the shape and scale parameters of the
+# gamma distribution to be used to approximate the asymptotic distribution of the test
+# statistics:
+
+thetaC = varC ./ meanC
+kC     = meanC.^2 ./ varC
+
+alpha = {0.9, 0.95, 0.99}
+critHl = zeros(pr_max, cols(alpha))
+critHc = zeros(pr_max, cols(alpha))
+
+loop for i=1..pr_max -q
+    tmp = invcdf(g, kL[i], thetaL[i], alpha)
+    critHl[i,] = tmp
+    tmp = invcdf(g, kC[i], thetaC[i], alpha)
+    critHc[i,] = tmp
+endloop
+
+print critHl
+print critHc
+
+tL = zeros(pr_max,1)
+tC = zeros(pr_max,1)
+loop for i=1..pr_max -q
+    if (traceL != 0)
+        tmp = 1 - cdf(g, kL[i], thetaL[i], traceL)
+        tL[i] = tmp
+    endif
+    if (traceC != 0)
+        tmp = 1 - cdf(g, kC[i], thetaC[i], traceC)
+        tC[i] = tmp
+    endif
+endloop
+
+if (traceL != 0)
+    printf "Pr(H_l>%g)\n", traceL
+    print tL
+endif
+
+if (traceC != 0)
+    printf "Pr(H_c>%g)\n", traceC
+    print tC
+endif
