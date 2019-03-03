@@ -1,0 +1,85 @@
+set verbose off
+# set seed 87564427
+T = 4
+N = 100
+NT = N*T
+nulldata NT --preserve
+setobs T 1:1 --stacked-time-series
+genr time
+series x = normal()
+list X = 0 x
+series u = normal()
+
+# generate scaled uniform random fixed effect
+fe_scale = 2.5
+matrix am = fe_scale * muniform(N,1)
+series a = pexpand(am)
+
+K = 10000
+matrix MSE = zeros(K, 2)
+matrix fepv = zeros(K, 1)
+
+loop i=1..K -q
+   series u = normal()
+   series y = 5 + x + u + a
+   smpl time < T --restrict
+   panel y 0 x --quiet
+   fepv[i] = $model.set verbose off
+# set seed 87564427
+T = 4
+N = 100
+NT = N*T
+nulldata NT --preserve
+setobs T 1:1 --stacked-time-series
+genr time
+series x = normal()
+list X = 0 x
+series u = normal()
+
+# generate scaled uniform random fixed effect
+fe_scale = 2.5
+matrix am = fe_scale * muniform(N,1)
+series a = pexpand(am)
+
+K = 10000
+matrix MSE = zeros(K, 2)
+matrix fepv = zeros(K, 1)
+
+loop i=1..K -q
+   series u = normal()
+   series y = 5 + x + u + a
+   smpl time < T --restrict
+   panel y 0 x --quiet
+   fepv[i] = $model.fixed_effects_F.pvalue
+   matrix b = $coeff
+   fcast --out-of-sample --quiet
+   smpl time == T --restrict --replace
+   series fca = $fcast
+   series fc0 = lincomb(X, b)
+   MSE[i,1] = sum((y - fca)^2) / $nobs
+   MSE[i,2] = sum((y - fc0)^2) / $nobs
+   smpl full
+endloop
+
+printf "Forecast MSEs\n"
+means = meanc(MSE)
+sds = sdc(MSE)
+printf "Including fixed effects: mean %g, sd %g\n", means[1], sds[1]
+printf "Excluding fixed effects: mean %g, sd %g\n", means[2], sds[2]
+printf "memo: average p-value for fixed effects: %g\n", meanc(fepv)fixed_effects_F.pvalue
+   matrix b = $coeff
+   fcast --out-of-sample --quiet
+   smpl time == T --restrict --replace
+   series fca = $fcast
+   series fc0 = lincomb(X, b)
+   MSE[i,1] = sum((y - fca)^2) / $nobs
+   MSE[i,2] = sum((y - fc0)^2) / $nobs
+   smpl full
+endloop
+
+printf "Forecast MSEs\n"
+means = meanc(MSE)
+sds = sdc(MSE)
+printf "Including fixed effects: mean %g, sd %g\n", means[1], sds[1]
+printf "Excluding fixed effects: mean %g, sd %g\n", means[2], sds[2]
+printf "memo: average p-value for fixed effects: %g\n", meanc(fepv)
