@@ -1,0 +1,21 @@
+
+# example: classic 1980s-style monetarist cr*p
+# (money Granger-causes income)
+
+open denmark --quiet
+
+# select optimal lag via HQC
+var 8 LRM LRY --lagselect
+scalar p = iminc($test[,3])
+
+# "proper" regressors
+list MLAGS = LRM(-1 to -p)
+list YLAGS = LRY(-1 to -p)
+
+# "extra" Toda-Yamamoto (aka Dolado-Lütkepohl) stuff
+list EXTRA = LRM(-(p+1)) LRY(-(p+1))
+
+ols LRY const MLAGS YLAGS EXTRA --no-df-corr
+
+# GC test
+omit MLAGS --chi-square --quiet 
