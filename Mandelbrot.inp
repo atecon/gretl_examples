@@ -1,0 +1,34 @@
+clear
+set verbose off
+
+#-----------
+# MANDELBROT
+#-----------
+scalar maxIterations = 500
+scalar gridSize = 2000
+matrix xlim = {-0.748766713922161, -0.748766707771757}
+matrix ylim = { 0.123640844894862,  0.123640851045266}
+
+# Setup
+set stopwatch
+scalar xstep = (max(xlim) - min(xlim))/gridSize
+matrix x = seq(min(xlim), max(xlim), xstep)
+scalar ystep = (max(ylim) - min(ylim))/gridSize
+matrix y = seq(min(ylim), max(ylim), ystep)
+
+matrix xGrid = ones(gridSize,gridSize).*x
+matrix yGrid = ones(gridSize,gridSize).*y
+
+matrix z0 = xGrid + yGrid	# FIXME: imaginary number: matrix z0 = xGrid + 1i*yGrid
+matrix count = ones(gridSize,gridSize)
+
+# Calculate
+matrix z = z0
+loop maxIterations -q
+    z = z.*z + z0
+    inside = abs(z).<=2
+    count=count+inside
+endloop
+count = log(count)
+
+printf "This took %1.3f sec.\n", $stopwatch		# MATLAB 2014a i7Laptop = 11.56secs
