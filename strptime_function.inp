@@ -1,0 +1,8 @@
+matrix tm = $now
+eval strftime(tm[1])
+tt = strptime(20161225)
+eval strftime(tt)
+tt = strptime("2016-12-25")
+eval strftime(tt)
+tt = strptime("Thursday 02/07/2019", "%A %m/%d/%Y")
+eval strftime(tt) 
