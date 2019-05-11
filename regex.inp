@@ -1,0 +1,77 @@
+clear
+set verbose off
+
+/*
+Working with regular expressions (Pearl style) using Gretl.
+*/
+
+# Example string
+#================
+string s = sprintf("Today is 10. May 2019, also known as 2019-05-10 \n\
+  but sometimes also written as 2019/05/10\n\
+  Tooday \n\
+  Suntime: 3 h HOURS\n\
+  Expected Runtime: 0.6 min.\n")
+
+print s
+
+
+
+# Detect and replace certain expressions
+#========================================
+eval regsub(s, "\d", "_")					# all digits by underscore
+eval regsub(s, "\d\d\d\d-\d\d-\d\d", "+")	# digits fixed pattern
+eval regsub(s, "\D", "_")					# all none digit values
+eval regsub(s, "\w", "_")					# all A-Z, a-z, 0-9 values
+eval regsub(s, "\W", "_")					# not A-Z, a-z, 0-9
+eval regsub(s, "\s", "_")					# replace whitespaces
+eval regsub(s, "\S", "_")					# not whitespace
+eval regsub(s, ".", "_")					# all values
+
+
+# Working with quantifiers
+#=========================
+/*
+* -- 0 or more
++ -- 1 or more
+? -- 0 or 1
+{min,max}
+{n}
+*/
+
+eval regsub(s, "\w{5}", "_")				# replace 5-letter words
+eval regsub(s, "\w{5}", "_")				# replace 5-letter words
+eval regsub(s, "\w+", "_")					# replace 1 or more characters
+eval regsub(s, "\d+", "_")					# replace 1 or more characters
+eval regsub(s, "\d+", "_")					# replace 1 or more characters
+eval regsub(s, "Too?day", "Tomorrow")		# 2nd 'o' may appear or not optionally
+
+
+# Working with positions
+#========================
+/*
+^ -- beginning of a line
+$ -- end
+\b -- word boundary
+*/
+s
+eval regsub(s, "^\w+", "_") 				# Word at the beginning of a line followed by 1 or more chars
+eval regsub(s, "\w+$", "_") 				# Word at the end of a line followed by 1 or more chars
+eval regsub(s, "\W+$", "_") 				# None characters at the end of a line followed by 1 or more chars
+
+eval regsub(s, "\w{4}", "_") 		# Initial four letters/ digits of each term
+eval regsub(s, "\b\w{4}\b", "_") 	# Only characters with 4 letters/ digits
+
+
+# Character classes
+#==================
+eval regsub(s, "[SR]untime", "_")			# replace whole word which is either Suntime or Runtime
+eval regsub(s, "^[SR]untime", "_")			# only at the beginning of a line -- be careful of eventual spaces
+eval regsub(s, "\d{4}[-/]", "xxxx")			# match 4 digits followed either by '-' or '/'
+
+eval regsub(s, "\d?\sh", "0")				# search for a case where a digit+space comes before 'h'
+
+eval regsub(s, "[a-e]", "x")				# replace all a to e
+eval regsub(s, "[a-e]{2}", "x")				# only replace if 2 consecutive letters are in the range a to e
+
+eval regsub(s, "[^a-e]{2}", "x")			# anything that's not only a to e
