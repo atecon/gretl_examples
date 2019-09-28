@@ -1,0 +1,48 @@
+# script 1: create time-series dataset
+set verbose off
+include dbnomics.gfn
+
+nulldata 38
+setobs 1 1980
+
+provider = "IMF"
+database = "WEO"
+bundle spec = null
+spec["weo-country"] = defarray("FRA", "DEU", "ITA")
+spec["weo-subject"] = defarray("LP", "LE")
+bs = dbnomics_get_multiple(provider, database, 20, 0, spec)
+
+list X = null
+loop i = 1..nelem(bs) --quiet
+    sn = fixname(bs[i].series_code, 1)
+    series tmp = NA
+    dbnomics_bundle_get_data(bs[i], &tmp)
+    # add series to list
+    X += genseries(sn, tmp)
+endloop
+
+# save the per-country time-series data
+store tmp.gdt X
+
+
+# script 2: convert to panel
+# 38 years, 3 countries
+NT = 38 * 3
+nulldata NT
+setobs 38 1:01 --stacked-time-series
+series country = $unit
+series Employment
+series Population
+strings cnames = defarray("DEU", "FRA", "ITA")
+# set the sample to each country in turn
+loop i = 1..3 --quiet
+    smpl country == i --restrict --replace
+    ename = sprintf("%s_LE", cnames[i])
+    pname = sprintf("%s_LP", cnames[i])
+    join tmp.gdt Employment --data="@ename"
+    join tmp.gdt Population --data="@pname"
+endloop
+smpl full
+setinfo Employment --description="Employment - Persons"
+setinfo Population --description="Population - Persons"
+store dbn_panel.gdt
