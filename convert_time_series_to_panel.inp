@@ -46,3 +46,8 @@ smpl full
 setinfo Employment --description="Employment - Persons"
 setinfo Population --description="Population - Persons"
 store dbn_panel.gdt
+
+#
+setobs 1 1980 --panel-time
+series obsdate = $obsdate 
+print obsdate -o --range=1:20
